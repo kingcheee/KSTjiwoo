@@ -1,0 +1,9 @@
+name,comment_length,likes,is_spam,has_image
+Alice,150,25,False,True
+Bob,200,30,False,False
+Charlie,50,10,True,True
+David,300,45,False,True
+Eve,120,20,False,False
+Frank,180,35,True,False
+Grace,75,5,False,True
+Hyemin,160,28,False,True
