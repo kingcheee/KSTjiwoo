@@ -689,7 +689,9 @@ class App:
             time.sleep(0.5)
 
             # Success Callback
-            self.root.after(0, lambda: self.reset_ui_success(md_path))
+            self.root.after(0, lambda err=e: self._gemini_fallback_to_notebooklm(
+                err, wav_path, session_name, screenshots, notebooklm_available, hybrid if notebooklm_available else None
+            ))
 
         except Exception as e:
             # Log exact traceback for debugging
@@ -699,8 +701,53 @@ class App:
                     traceback.print_exc(file=f)
             except Exception:
                 pass
-                
-            self.root.after(0, lambda err=e: self.reset_ui_error(f"제미나이 분석 실패: {err}\n\n상세 에러가 다운로드 폴더의 'zoom_secretary_error.log'에 저장되었습니다."))
+            
+            # Gemini 실패 시 NotebookLM으로 폴백
+            if notebooklm_available and hybrid is not None:
+                self.root.after(0, lambda err=e: self._gemini_fallback_to_notebooklm(
+                    err, wav_path, session_name, screenshots, True, hybrid
+                ))
+            else:
+                self.root.after(0, lambda err=e: self.reset_ui_error(
+                    f"제미나이 분석 실패: {err}\n\nNotebookLM 모듈이 없어 폴백도 불가능합니다.\n"
+                    f"상세 에러가 다운로드 폴더의 'zoom_secretary_error.log'에 저장되었습니다."
+                ))
+
+    def _gemini_fallback_to_notebooklm(self, gemini_error, wav_path, session_name,
+                                        screenshots, notebooklm_available, hybrid):
+        """Gemini API 실패 시 NotebookLM으로 폴백하여 대본 생성"""
+        try:
+            self.root.after(0, lambda: self.update_gui_progress(
+                50.0, "⚠️ Gemini 실패 → NotebookLM으로 폴백 중..."
+            ))
+            
+            md_path = hybrid.process_and_summarize(
+                wav_path=wav_path,
+                session_name=session_name,
+                screenshots=screenshots,
+                output_dir=os.path.dirname(wav_path),
+                prefer_gemini=False  # 바로 NotebookLM 사용
+            )
+            
+            self.root.after(0, lambda: self.update_gui_progress(100.0, "✅ NotebookLM 폴백 완료!", "#28a745"))
+            time.sleep(0.5)
+            self.root.after(0, lambda: self.reset_ui_success(md_path))
+            
+        except Exception as nb_error:
+            # NotebookLM도 실패
+            error_msg = (
+                f"Gemini API 실패: {gemini_error}\n"
+                f"NotebookLM 폴백도 실패: {nb_error}\n\n"
+                f"상세 에러가 다운로드 폴더의 'zoom_secretary_error.log'에 저장되었습니다."
+            )
+            try:
+                error_log_path = os.path.join("C:/Users/sxeyc/Downloads", "zoom_secretary_error.log")
+                with open(error_log_path, "w", encoding="utf-8") as f:
+                    f.write(f"Gemini Error: {gemini_error}\n\nNotebookLM Error: {nb_error}\n")
+                    traceback.print_exc(file=f)
+            except Exception:
+                pass
+            self.root.after(0, lambda: self.reset_ui_error(error_msg))
 
     def reset_ui_success(self, md_path):
         self.action_btn.config(state="normal", text="수업 시작 (50분 녹음)", bg="#1f4e79")
