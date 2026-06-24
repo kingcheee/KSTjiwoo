@@ -78,9 +78,12 @@ class NotebookLMSecretary:
             async with NotebookLMClient.from_storage(
                 path=self.storage_path, chat_timeout=180
             ) as client:
-                result = await client.sources.upload(
+                result = await client.sources.add_file(
                     notebook_id=notebook_id,
-                    path=wav_path
+                    file_path=wav_path,
+                    mime_type="audio/wav",
+                    wait=True,
+                    wait_timeout=120
                 )
                 return result
         
